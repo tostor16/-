@@ -1,0 +1,170 @@
+CREATE DOMAIN three_digits AS integer
+CHECK (VALUE BETWEEN 0 AND 999);
+
+CREATE DOMAIN four_digits AS integer
+CHECK (VALUE BETWEEN 0 AND 9999);
+
+CREATE TYPE wine_type AS ENUM (
+    'Белое вино',
+    'Красное вино',
+    'Розовое вино'
+);
+
+CREATE TYPE type_of_sufficient_sugar AS ENUM (
+    'Сухое',
+    'Полусухое',
+    'Полусладкое',
+	'Сладкое'
+);
+
+CREATE TABLE supplier
+(  id_supplier varchar(7) PRIMARY KEY NOT NULL,
+   supplier_name varchar(50) NOT NULL,
+   region varchar(35) NOT NULL,
+   CONSTRAINT id_supplier_pattern CHECK(id_supplier ~ '^[A-Z]{2}\-[0-9]{4}$'),
+   CONSTRAINT id_supplier_unique UNIQUE(id_supplier)
+);
+
+CREATE TABLE buyer
+(  id_buyer varchar(7) PRIMARY KEY NOT NULL,
+   buyer_name varchar(30) NOT NULL,
+   CONSTRAINT id_buyer_pattern CHECK(id_buyer ~ '^[0-9]{4}\-[A-Z]{2}$'),
+   CONSTRAINT id_buyer_unique UNIQUE(id_buyer)
+);
+
+CREATE TABLE contract_with_supplier
+(  numeric_contract_supplier varchar(11) PRIMARY KEY NOT NULL,
+   id_supplier varchar(7) NOT NULL,
+   number_of_scheduled_deliveries three_digits NOT NULL DEFAULT 0,
+   term_of_the_concluded_agreement three_digits NOT NULL DEFAULT 0,
+   formatted_deliveries text GENERATED ALWAYS AS (number_of_scheduled_deliveries::text || ' поставок') STORED,
+   formatted_term text GENERATED ALWAYS AS (term_of_the_concluded_agreement::text || ' мес.') STORED,
+   CONSTRAINT numeric_contract_supplier_pattern CHECK(numeric_contract_supplier ~ '^[A-Z]{2}\-[0-9]{2}\-[A-Z]{2}\-[0-9]{2}$'),
+   CONSTRAINT numeric_contract_supplier_unique UNIQUE(numeric_contract_supplier),
+   FOREIGN KEY (id_supplier) REFERENCES supplier (id_supplier) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE contract_with_buyer
+(  numeric_contract_buyer varchar(11) PRIMARY KEY NOT NULL,
+   id_buyer varchar(7) NOT NULL,
+   number_of_scheduled_shipments three_digits NOT NULL DEFAULT 0,
+   term_of_the_concluded_agreement three_digits NOT NULL DEFAULT 0,
+   formatted_shipments text GENERATED ALWAYS AS (number_of_scheduled_shipments::text || ' поставок') STORED,
+   formatted_term text GENERATED ALWAYS AS (term_of_the_concluded_agreement::text || ' мес.') STORED,
+   CONSTRAINT numeric_contract_buyer_pattern CHECK(numeric_contract_buyer ~ '^[A-Z]{2}\-[0-9]{2}\-[A-Z]{2}\-[0-9]{2}$'),
+   CONSTRAINT numeric_contract_buyer_unique UNIQUE(numeric_contract_buyer),
+   FOREIGN KEY (id_buyer) REFERENCES buyer (id_buyer) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE order_
+(  numeric_order varchar(11) PRIMARY KEY NOT NULL,
+   id_supplier varchar(7) NOT NULL,
+   order_formulation_date date NOT NULL,
+   number_of_products_order four_digits NOT NULL DEFAULT 0,
+   date_of_scheduled_order_receipt date NOT NULL,
+   formatted_number_of_products_order text GENERATED ALWAYS AS (number_of_products_order::text || ' бутылок') STORED,
+   CONSTRAINT numeric_order_pattern CHECK(numeric_order ~ '^[0-9]{5}\-[A-Z]{5}$'),
+   CONSTRAINT numeric_order_unique UNIQUE(numeric_order),
+   CONSTRAINT chk_order_formulation_date_range CHECK (order_formulation_date BETWEEN '2000-01-01' AND '2026-01-01'),
+   CONSTRAINT chk_date_of_scheduled_order_receipt_range CHECK (date_of_scheduled_order_receipt BETWEEN '2000-01-01' AND '2026-01-01'),
+   CONSTRAINT order_formulation_date_less_than_date_of_scheduled_order_receipt CHECK(order_formulation_date < date_of_scheduled_order_receipt),
+   FOREIGN KEY (id_supplier) REFERENCES supplier (id_supplier) ON UPDATE RESTRICT ON DELETE RESTRICT
+);
+
+CREATE TABLE sale
+(  numeric_sale varchar(11) PRIMARY KEY NOT NULL,
+   id_buyer varchar(7) NOT NULL,
+   date_formulation_sales date NOT NULL,
+   number_of_products_sale four_digits NOT NULL DEFAULT 0,
+   date_of_scheduled_product_receipt date NOT NULL,
+   formatted_number_of_products_sale text GENERATED ALWAYS AS (number_of_products_sale::text || ' бутылок') STORED,
+   CONSTRAINT numeric_sale_supplier_pattern CHECK(numeric_sale ~ '^[A-Z]{5}\-[0-9]{5}$'),
+   CONSTRAINT numeric_sale_unique UNIQUE(numeric_sale),
+   CONSTRAINT chk_date_formulation_sales_range CHECK (date_formulation_sales BETWEEN '2000-01-01' AND '2026-01-01'),
+   CONSTRAINT chk_date_of_scheduled_product_receipt_range CHECK (date_of_scheduled_product_receipt BETWEEN '2000-01-01' AND '2026-01-01'),
+   CONSTRAINT date_formulation_sales_less_than_date_of_scheduled_product_receipt CHECK(date_formulation_sales < date_of_scheduled_product_receipt),
+   FOREIGN KEY (id_buyer) REFERENCES buyer (id_buyer) ON UPDATE RESTRICT ON DELETE RESTRICT
+);
+
+CREATE TABLE product_type
+(	id_product_type varchar(8) PRIMARY KEY NOT NULL,
+	wine_type wine_type NOT NULL,
+	sugar_content type_of_sufficient_sugar NOT NULL,
+	type_of_product_name text NOT NULL,
+	CONSTRAINT product_type_unique UNIQUE(id_product_type),
+	CONSTRAINT id_product_type_pattern CHECK(id_product_type ~ '^[A-Z]{2}\-[0-9]{2}\-[A-Z]{2}$')
+);
+
+CREATE TABLE supplier_product_type
+(	id_supplier varchar(7) NOT NULL,
+	id_product_type varchar(8) NOT NULL,
+	PRIMARY KEY (id_supplier, id_product_type),
+	FOREIGN KEY (id_supplier) REFERENCES supplier (id_supplier) ON UPDATE CASCADE ON DELETE CASCADE,  
+    FOREIGN KEY (id_product_type) REFERENCES product_type (id_product_type) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE order_product_type
+(	numeric_order varchar(11) NOT NULL,
+	id_product_type varchar(8) NOT NULL,
+	PRIMARY KEY (numeric_order, id_product_type),
+	FOREIGN KEY (numeric_order) REFERENCES order_ (numeric_order) ON UPDATE CASCADE ON DELETE CASCADE,  
+    FOREIGN KEY (id_product_type) REFERENCES product_type (id_product_type) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE sale_product_type
+(   	numeric_sale varchar(11) NOT NULL,
+	id_product_type varchar(8) NOT NULL,
+	PRIMARY KEY (numeric_sale, id_product_type),
+	FOREIGN KEY (numeric_sale) REFERENCES sale (numeric_sale) ON UPDATE CASCADE ON DELETE CASCADE,  
+    FOREIGN KEY (id_product_type) REFERENCES product_type (id_product_type) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE TABLE warehouse_worker
+(
+	id_worker varchar(7) PRIMARY KEY NOT NULL,
+	contact_data varchar(16),
+	CONSTRAINT id_worker_unique UNIQUE(id_worker),
+	CONSTRAINT id_worker_pattern CHECK(id_worker ~'^[0-9]{2}\-[0-9]\-[0-9]{2}$'),
+	CONSTRAINT contact_data_pattern CHECK(contact_data ~'^\+7[0-9]{3}-[0-9]{3}-[0-9]{2}-[0-9]{2}$')
+);
+
+CREATE TABLE delivery
+(  delivery_number varchar(11) PRIMARY KEY NOT NULL,
+   numeric_order varchar(11) NOT NULL,
+   id_worker varchar(7) NOT NULL,
+   quantity_supplied_product four_digits NOT NULL DEFAULT 0,
+   formatted_quantity_supplied_product text GENERATED ALWAYS AS (quantity_supplied_product::text || ' бутылок') STORED,
+   upload_date date NOT NULL,
+   CONSTRAINT delivery_number_pattern CHECK(delivery_number ~ '^[0-9]{2}\-[0-9]{2}\-[0-9]{2}\-[0-9]{2}$'),
+   CONSTRAINT delivery_number_unique UNIQUE(delivery_number),
+   CONSTRAINT chk_upload_date_range CHECK (upload_date BETWEEN '2000-01-01' AND '2026-01-01'),
+   FOREIGN KEY (numeric_order) REFERENCES order_ (numeric_order) ON UPDATE RESTRICT ON DELETE RESTRICT,
+   FOREIGN KEY (id_worker) REFERENCES warehouse_worker (id_worker) ON UPDATE RESTRICT ON DELETE RESTRICT
+);
+
+CREATE TABLE shipment
+(  shipment_number varchar(11) PRIMARY KEY NOT NULL,
+   numeric_sale varchar(11) NOT NULL,
+   id_worker varchar(7) NOT NULL,
+   quantity_shipped_product four_digits NOT NULL DEFAULT 0,
+   formatted_quantity_shipped_product text GENERATED ALWAYS AS (quantity_shipped_product::text || ' бутылок') STORED,
+   unload_date date NOT NULL,
+   CONSTRAINT shipment_number_pattern CHECK(shipment_number ~ '^[A-Z]{2}\-[A-Z]{2}\-[A-Z]{2}\-[A-Z]{2}$'),
+   CONSTRAINT shipment_number_unique UNIQUE(shipment_number),
+   CONSTRAINT chk_unload_date_range CHECK (unload_date BETWEEN '2000-01-01' AND '2026-01-01'),
+   FOREIGN KEY (numeric_sale) REFERENCES sale (numeric_sale) ON UPDATE RESTRICT ON DELETE RESTRICT,
+   FOREIGN KEY (id_worker) REFERENCES warehouse_worker (id_worker) ON UPDATE RESTRICT ON DELETE RESTRICT
+);
+
+CREATE TABLE product
+(	id_product varchar(5) PRIMARY KEY NOT NULL,
+	id_product_type varchar(8) NOT NULL,
+	delivery_number varchar(11) NOT NULL,
+	shipment_number varchar(11) NOT NULL,
+	return_status boolean NOT NULL DEFAULT False,
+	CONSTRAINT id_product_unique UNIQUE(id_product),
+	CONSTRAINT id_product_pattern CHECK(id_product ~ '^[A-Z]{2}\-[0-9]{2}$'),
+	FOREIGN KEY (id_product_type) REFERENCES product_type (id_product_type) ON UPDATE CASCADE ON DELETE RESTRICT,
+	FOREIGN KEY (delivery_number) REFERENCES delivery (delivery_number) ON UPDATE RESTRICT ON DELETE RESTRICT,
+	FOREIGN KEY (shipment_number) REFERENCES shipment (shipment_number) ON UPDATE RESTRICT ON DELETE RESTRICT
+);
